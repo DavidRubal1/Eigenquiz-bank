@@ -354,6 +354,26 @@
       transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
     }
 
+    .bank-grid{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .bank-option {
+      position: relative;
+      display: flex;
+      min-height: 74px;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.48);
+      cursor: pointer;
+      transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+    }
+
     .section-option:hover {
       border-color: #9ea99f;
       background: #fff;
@@ -1366,6 +1386,16 @@
                       <span class="mode-description">Race the clock and build your score to 10.</span>
                     </span>
                   </label>
+                  <label class="mode-option">
+                    <input type="radio" name="mode" value="show-bank">
+                    <span class="mode-card">
+                      <span class="mode-title-row">
+                        <span class="mode-title">Show Question Bank</span>
+                        <span class="mode-dot" aria-hidden="true"></span>
+                      </span>
+                      <span class="mode-description">Show the available questions for the selected topics.</span>
+                    </span>
+                  </label>
                 </div>
               </fieldset>
               <ul class="mode-rules" id="mode-rules" aria-live="polite"></ul>
@@ -1411,6 +1441,7 @@
             <span class="mode-pill" id="mode-pill"></span>
             <span class="selection-copy" id="study-selection-copy"></span>
           </div>
+          <button id="back-to-bank" class="ghost-button" hidden type="button"><span aria-hidden="true">←</span> Back to bank</button>
           <button class="ghost-button" id="change-setup" type="button"><span aria-hidden="true">←</span> Back to selection</button>
         </div>
 
@@ -1496,6 +1527,14 @@
           </div>
         </div>
       </section>
+
+      <section id="question-bank-view" hidden>
+        <div class="study-topbar">
+        <button class="ghost-button" id="bank-return" type="button"><span aria-hidden="true">←</span> Return to Setup</button>
+        </div>
+        
+        <div id="bank-grid"></div>
+      </section>
     </main>
 
     <footer class="app-footer" id="app-footer"></footer>
@@ -1512,6 +1551,7 @@
       const ANSWERS = ["always", "sometimes", "never"];
       const mobileSetupQuery = window.matchMedia("(max-width: 600px)");
       const questionsById = new Map(DATA.questions.map((question) => [question.id, question]));
+
       const state = {
         mode: null,
         modePanelVisible: false,
@@ -1527,18 +1567,21 @@
         timerId: null,
         setupToastId: null,
         deadline: 0,
-        remaining: MAX_TIME
+        remaining: MAX_TIME,
+        scroll: 0
       };
 
       const elements = {
         setupView: document.getElementById("setup-view"),
         studyView: document.getElementById("study-view"),
         completionView: document.getElementById("completion-view"),
+        questionBankView: document.getElementById("question-bank-view"),
         questionLookupForm: document.getElementById("question-lookup-form"),
         questionLookupInput: document.getElementById("question-number-input"),
         questionLookupError: document.getElementById("question-lookup-error"),
         setupForm: document.getElementById("setup-form"),
         sectionGrid: document.getElementById("section-grid"),
+        bankGrid: document.getElementById("bank-grid"),
         selectionCopy: document.getElementById("selection-copy"),
         setupError: document.getElementById("setup-error"),
         setupToast: document.getElementById("setup-toast"),
@@ -1573,7 +1616,8 @@
         modeJumpButton: document.getElementById("mode-jump-button"),
         startButton: document.getElementById("start-button"),
         startButtonSlot: document.getElementById("start-button-slot"),
-        floatingSetupAction: document.getElementById("floating-setup-action")
+        floatingSetupAction: document.getElementById("floating-setup-action"),
+        backToBankButton: document.getElementById("back-to-bank")
       };
 
       function formatCount(value) {
@@ -1794,6 +1838,7 @@
         elements.setupView.hidden = view !== "setup";
         elements.studyView.hidden = view !== "study";
         elements.completionView.hidden = view !== "completion";
+        elements.questionBankView.hidden = view !== "bank";
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
 
@@ -1813,7 +1858,7 @@
         }
       }
 
-      function renderQuestion() {
+      function renderQuestion(fromBank = false) {
         stopTimer();
         resetAnswerState();
         state.current = getNextQuestion();
@@ -1822,6 +1867,7 @@
         elements.questionId.textContent = state.current.id;
         elements.questionCount.hidden = state.mode === "direct";
         elements.questionCount.textContent = state.mode === "direct" ? "" : `Question ${state.questionsSeen}`;
+        elements.backToBankButton.hidden = !fromBank;
         setQuestionText(elements.questionPrompt, state.current.prompt);
         if (state.mode === "hard") startTimer();
         requestAnimationFrame(() => elements.answerButtons[0].focus({ preventScroll: true }));
@@ -1851,12 +1897,32 @@
         state.questionsSeen = 0;
         state.lastQuestionId = null;
         if (resetScore) state.score = 0;
-        configureStudyView();
-        showView("study");
-        renderQuestion();
+        if(state.mode === "show-bank"){
+            showView("bank");
+            showQuestionBank();
+            renderBank();
+          } else{
+            configureStudyView();
+            showView("study");
+            renderQuestion();
+          }
       }
 
-      function beginDirectQuestion(question) {
+      
+      function showQuestionBank(){
+        stopTimer();
+        resetAnswerState();
+        state.current = getNextQuestion();
+        state.questionsSeen += 1;
+        elements.questionSection.textContent = state.current.section;
+        elements.questionCount.hidden = state.mode === "direct";
+        elements.questionCount.textContent = state.mode === "direct" ? "" : `Question ${state.questionsSeen}`;
+        setQuestionText(elements.questionPrompt, state.current.prompt);
+        if (state.mode === "hard") startTimer();
+        requestAnimationFrame(() => elements.answerButtons[0].focus({ preventScroll: true }));
+      }
+
+      function beginDirectQuestion(question, fromBank = false) {
         state.mode = "direct";
         state.pool = [question];
         state.deck = [];
@@ -1865,7 +1931,49 @@
         state.score = 0;
         configureStudyView();
         showView("study");
-        renderQuestion();
+        renderQuestion(fromBank);
+      }
+
+      function renderBank(){
+        const bank = document.createElement("span");
+        const currGrid = document.createElement("div");
+        currGrid.className = "bank-grid";
+        const section = document.createElement("h1");
+        section.textContent = state.pool[0].section;
+        console.log(section.textContent);
+        currGrid.append(section);
+        currGrid.append(document.createElement("h1"));
+        state.pool.forEach((element, index) =>{
+          if(section.textContent !== element.section){
+            const oldGrid = currGrid.cloneNode(true);
+            elements.bankGrid.appendChild(oldGrid);
+            currGrid.innerHTML = "";
+            section.textContent = element.section;
+            console.log(section.textContent);
+            currGrid.append(section);
+            currGrid.append(document.createElement("h1"));
+          }
+          const item = document.createElement("button");
+          item.className = "section-option"
+          const num = document.createElement("span");
+          num.textContent = index + 1;
+          num.className = "section-pill"
+          const q = document.createElement("span");
+          q.className = "question-prompt";
+          setQuestionText(q, element.prompt);
+          const id = document.createElement("span");
+          id.textContent = element.id;
+          id.className = "id-pill";
+          item.append(num);
+          item.append(id);
+          item.append(q);
+          item.onclick = function(){
+            state.scroll = window.scrollY;
+            beginDirectQuestion(questionsById.get(element.id), true)
+          };
+          currGrid.append(item);
+        })
+        elements.bankGrid.appendChild(currGrid);
       }
 
       function ensureFeedbackActionsVisible() {
@@ -2023,6 +2131,14 @@
         window.requestAnimationFrame(measureSetupActionVisibility);
       }
 
+      function returnToBank() {
+        showView("bank");
+        updateModeRules();
+        window.requestAnimationFrame(measureSetupActionVisibility);
+        window.scrollTo(0, state.scroll);
+      }
+
+
       function initialize() {
         const favicon = document.createElement("link");
         favicon.rel = "icon";
@@ -2059,7 +2175,9 @@
             return;
           }
           elements.questionLookupError.textContent = "";
-          beginDirectQuestion(question);
+          
+            beginDirectQuestion(question);
+          
         });
 
         elements.sectionGrid.addEventListener("change", updateSelection);
@@ -2100,7 +2218,8 @@
             document.getElementById("section-heading").scrollIntoView({ behavior: "smooth", block: "center" });
             return;
           }
-          beginStudy(true);
+            beginStudy(true);
+
         });
 
         elements.answerButtons.forEach((button) => {
@@ -2115,9 +2234,11 @@
             renderQuestion();
           }
         });
+        elements.backToBankButton.addEventListener('click', returnToBank);
         document.getElementById("change-setup").addEventListener("click", returnToSetup);
         document.getElementById("completion-setup").addEventListener("click", returnToSetup);
         document.getElementById("home-button").addEventListener("click", returnToSetup);
+        document.getElementById("bank-return").addEventListener('click', returnToSetup)
         document.getElementById("practice-again").addEventListener("click", () => beginStudy(true));
 
         document.getElementById("mathjax-script").addEventListener("load", () => {
@@ -2129,5 +2250,6 @@
       initialize();
     })();
   </script>
+ 
 </body>
 </html>
