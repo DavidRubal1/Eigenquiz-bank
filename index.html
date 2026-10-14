@@ -2128,12 +2128,14 @@
         stopTimer();
         showView("setup");
         updateModeRules();
+        elements.bankGrid.innerHTML = "";
         window.requestAnimationFrame(measureSetupActionVisibility);
       }
 
       function returnToBank() {
         showView("bank");
         updateModeRules();
+        
         window.requestAnimationFrame(measureSetupActionVisibility);
         window.scrollTo(0, state.scroll);
       }
