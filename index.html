@@ -1934,47 +1934,47 @@
         renderQuestion(fromBank);
       }
 
-      function renderBank(){
-        const bank = document.createElement("span");
-        const currGrid = document.createElement("div");
-        currGrid.className = "bank-grid";
-        const section = document.createElement("h1");
-        section.textContent = state.pool[0].section;
-        console.log(section.textContent);
-        currGrid.append(section);
-        currGrid.append(document.createElement("h1"));
-        state.pool.forEach((element, index) =>{
-          if(section.textContent !== element.section){
-            const oldGrid = currGrid.cloneNode(true);
-            elements.bankGrid.appendChild(oldGrid);
-            currGrid.innerHTML = "";
-            section.textContent = element.section;
-            console.log(section.textContent);
-            currGrid.append(section);
-            currGrid.append(document.createElement("h1"));
-          }
-          const item = document.createElement("button");
-          item.className = "section-option"
-          const num = document.createElement("span");
-          num.textContent = index + 1;
-          num.className = "section-pill"
-          const q = document.createElement("span");
-          q.className = "question-prompt";
-          setQuestionText(q, element.prompt);
-          const id = document.createElement("span");
-          id.textContent = element.id;
-          id.className = "id-pill";
-          item.append(num);
-          item.append(id);
-          item.append(q);
-          item.onclick = function(){
-            state.scroll = window.scrollY;
-            beginDirectQuestion(questionsById.get(element.id), true)
-          };
-          currGrid.append(item);
-        })
-        elements.bankGrid.appendChild(currGrid);
-      }
+    function renderBank() {
+      elements.bankGrid.innerHTML = "";
+      let currGrid = null;
+      let currentSection = "";
+      state.pool.forEach((element, index) => {
+        if (element.section !== currentSection) {
+          currentSection = element.section;
+          currGrid = document.createElement("div");
+          currGrid.className = "bank-grid";
+
+          const heading = document.createElement("h1");
+          heading.textContent = currentSection;
+          currGrid.append(heading, document.createElement("h1"));
+
+          elements.bankGrid.appendChild(currGrid);
+        }
+
+        const item = document.createElement("button");
+        item.className = "section-option";
+
+        const num = document.createElement("span");
+        num.textContent = index + 1;
+        num.className = "section-pill";
+
+        const q = document.createElement("span");
+        q.className = "question-prompt";
+        setQuestionText(q, element.prompt);
+
+        const id = document.createElement("span");
+        id.textContent = element.id;
+        id.className = "id-pill";
+
+        item.append(num, id, q);
+        item.onclick = () => {
+          state.scroll = window.scrollY;
+          beginDirectQuestion(questionsById.get(element.id), true);
+        };
+
+        currGrid.appendChild(item);
+      });
+    }
 
       function ensureFeedbackActionsVisible() {
         if (elements.feedbackPanel.hidden) return;
@@ -2128,14 +2128,12 @@
         stopTimer();
         showView("setup");
         updateModeRules();
-        elements.bankGrid.innerHTML = "";
         window.requestAnimationFrame(measureSetupActionVisibility);
       }
 
       function returnToBank() {
         showView("bank");
         updateModeRules();
-        
         window.requestAnimationFrame(measureSetupActionVisibility);
         window.scrollTo(0, state.scroll);
       }
